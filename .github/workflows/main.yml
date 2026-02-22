@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SR2 Renewables – Schedule Tool</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0d1b2a;
+      --card-bg: #1b263b;
+      --text-light: #e9ecef;
+      --accent: #3CB54A;
+      --accent-dark: #339B40;
+      --border: #33415c;
+      --weekend-bg: #2d3748;
+      --weekend-opacity: 0.7;
+      --color-green: #22c55e;
+      --color-blue: #3b82f6;
+      --color-orange: #f59e0b;
+      --color-red: #ef4444;
+      --color-purple: #8b5cf6;
+    }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      margin: 0;
+      padding: 1.5rem;
+      min-height: 100vh;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 70vw;
+      height: 70vw;
+      max-width: 900px;
+      max-height: 900px;
+      background-image: url('Sr2 Green_Writing_Black_Circle.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    /* Responsive improvements */
+    @media (max-width: 1024px) {
+      body { padding: 1rem; }
+      .round-logo { width: 90px; height: 90px; }
+      .header-title { font-size: 2rem; }
+      table { min-width: 720px; }
+      th, td { padding: 0.65rem 0.8rem; font-size: 0.92rem; }
+    }
+
+    @media (max-width: 768px) {
+      .main-header { flex-direction: column; gap: 1rem; text-align: center; }
+      .month-selector { flex-direction: column; align-items: center; }
+      .schedule-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: var(--accent) var(--card-bg);
+      }
+      .schedule-container::-webkit-scrollbar { height: 8px; }
+      .schedule-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+      table { min-width: 680px; }
+      th, td { min-width: 80px; padding: 0.6rem 0.7rem; font-size: 0.88rem; }
+      .job-label {
+        font-size: 0.95rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+      }
+      .legend { font-size: 0.9rem; gap: 1rem; }
+      .btn-primary, .btn-secondary, .btn-danger {
+        padding: 0.8rem 1.4rem;
+        font-size: 0.95rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 0.8rem; }
+      .round-logo { width: 80px; height: 80px; }
+      table { min-width: 620px; }
+      th, td { font-size: 0.84rem; padding: 0.55rem 0.65rem; }
+    }
+
+    .main-header { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.8rem; }
+    .round-logo { width: 100px; height: 100px; object-fit: contain; }
+    .header-title { font-size: 2.2rem; font-weight: 700; color: var(--accent); margin: 0; }
+    .header-subtitle { color: #94a3b8; font-size: 1rem; margin: 0; }
+    .month-selector { display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .month-selector select { background: var(--card-bg); color: var(--text-light); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; font-size: 1rem; min-width: 160px; cursor: pointer; }
+    .schedule-container { background: var(--card-bg); border-radius: 12px; padding: 1.2rem; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; border: 1px solid var(--border); }
+    th { background: #0d1b2a; color: #cbd5e1; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+    td { cursor: pointer; user-select: none; min-height: 38px; }
+    td.weekend { background: var(--weekend-bg); opacity: var(--weekend-opacity); }
+    .job-label { color: #60a5fa; text-decoration: underline; cursor: pointer; }
+    .job-label:hover { color: #93c5fd; }
+    .legend { display: flex; gap: 1.2rem; margin-bottom: 1.5rem; flex-wrap: wrap; justify-content: center; font-size: 0.92rem; }
+    .legend-color { width: 16px; height: 16px; border-radius: 4px; }
+    .btn-primary { background: var(--accent); color: white; padding: 0.85rem 1.6rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-secondary { background: #4b5563; color: white; padding: 0.85rem 1.6rem; border-radius: 8px; border: none; cursor: pointer; }
+    .btn-secondary:hover { background: #6b7280; }
+    .btn-danger { background: #ef4444; color: white; padding: 0.85rem 1.6rem; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; }
+    .btn-danger:hover { background: #dc2626; }
+
+    /* Modal & calendar styles (unchanged but mobile-friendly) */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 100; }
+    .modal-content { background: var(--card-bg); border-radius: 12px; padding: 2rem; max-width: 500px; width: 90%; color: var(--text-light); border: 1px solid var(--border); position: relative; }
+    .modal-content h2 { margin: 0 0 1.5rem; color: var(--accent); font-size: 1.6rem; }
+    .modal-content label { display: block; margin: 1.2rem 0 0.5rem; color: #94a3b8; font-size: 1.05rem; font-weight: 500; }
+    .modal-content input, .modal-content select { width: 100%; padding: 0.85rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 1.05rem; }
+    .team-checkboxes { margin: 0.8rem 0 1.5rem; }
+    .team-line { display: flex; gap: 0.6rem; flex-wrap: nowrap; margin-bottom: 0.8rem; }
+    .team-line label { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 1.05rem; margin: 0; padding: 0; }
+    .team-line input[type="checkbox"] { width: 1.1rem; height: 1.1rem; margin: 0; }
+    .modal-buttons { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: flex-end; margin-top: 2rem; }
+    #calendarPopup, #editCalendarPopup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 12px 30px rgba(0,0,0,0.6); z-index: 300; display: none; }
+    #calendarPopup { width: 350px; min-width: 350px; }
+    .calendar-close, .edit-calendar-close { position: absolute; top: 8px; right: 12px; font-size: 1.4rem; color: #94a3b8; cursor: pointer; background: transparent; border: none; line-height: 1; }
+    .calendar-close:hover, .edit-calendar-close:hover { color: white; }
+    .calendar-header, .edit-calendar-header { text-align: center; margin-bottom: 10px; font-size: 1.05rem; font-weight: 600; color: var(--text-light); }
+    .calendar-grid, .edit-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+    .day-name, .edit-day-name { font-size: 0.82rem; font-weight: 600; color: #94a3b8; padding: 6px 0; line-height: 1; }
+    .calendar-day, .edit-calendar-day { padding: 8px 0; border-radius: 6px; cursor: pointer; font-size: 0.92rem; min-width: 38px; min-height: 38px; display: flex; align-items: center; justify-content: center; transition: all 0.12s; }
+    .calendar-day:hover, .edit-calendar-day:hover { background: rgba(60,181,74,0.18); }
+    .calendar-day.today, .edit-calendar-day.today { background: rgba(60,181,74,0.3); font-weight: 600; }
+    .calendar-day.weekend, .edit-calendar-day.weekend { color: #94a3b8; opacity: 0.8; }
+    .calendar-day.selected { background: var(--accent); color: white; font-weight: 600; }
+    .calendar-day.empty, .edit-calendar-day.empty { background: transparent; cursor: default; }
+    .edit-calendar-day.booked { border: 2px solid var(--color-green); font-weight: 600; }
+  </style>
+</head>
+<body>
+<div style="max-width: 1400px; margin: 0 auto;">
+  <div class="main-header">
+    <img src="Sr2 Green_Writing_Black_Circle.png" alt="SR2 Renewables Logo" class="round-logo">
+    <div class="header-text">
+      <h1 class="header-title">SR2 Renewables</h1>
+      <p class="header-subtitle">Team Schedule Tool</p>
+    </div>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+    <div class="month-selector">
+      <select id="yearSelect" onchange="loadSchedule()">
+        <option value="2026">2026</option>
+        <option value="2027">2027</option>
+      </select>
+      <select id="monthSelect" onchange="loadSchedule()">
+        <option value="0">January</option>
+        <option value="1" selected>February</option>
+        <option value="2">March</option>
+        <option value="3">April</option>
+        <option value="4">May</option>
+        <option value="5">June</option>
+        <option value="6">July</option>
+        <option value="7">August</option>
+        <option value="8">September</option>
+        <option value="9">October</option>
+        <option value="10">November</option>
+        <option value="11">December</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:1rem;">
+      <button onclick="openAddJobModal()" class="btn-primary text-lg px-8 py-3">+ Add New Job</button>
+      <button onclick="openEditCalendar()" class="btn-secondary text-lg px-8 py-3">Edit / Delete Job</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background:var(--color-green);"></div> START</div>
+    <div class="legend-item"><div class="legend-color" style="background:var(--color-blue);"></div> SCHOOL RUN</div>
+    <div class="legend-item"><div class="legend-color" style="background:var(--color-orange);"></div> OFFICE</div>
+    <div class="legend-item"><div class="legend-color" style="background:var(--color-red);"></div> HOLIDAY</div>
+    <div class="legend-item"><div class="legend-color" style="background:var(--color-purple);"></div> SR2</div>
+  </div>
+
+  <div class="schedule-container" id="scheduleArea">
+    <table id="scheduleTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>SIMON</th>
+          <th>CHRIS</th>
+          <th>ROOFER 1</th>
+          <th>ROOFER 2</th>
+          <th>ROOFER 3</th>
+          <th>ROOFER 4</th>
+          <th>SUB 1</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+  </div>
+
+  <div style="text-align:center; margin-top:2rem; display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
+    <button onclick="saveSchedule()" class="btn-primary">Save Schedule</button>
+    <button onclick="downloadAsPDF()" class="btn-primary">Download as PDF</button>
+    <button onclick="clearAllData()" class="btn-danger">Clear All Schedule Data</button>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="addJobModal" class="modal">
+  <div class="modal-content">
+    <h2 id="modalTitle">Add New Job</h2>
+    <label>Postcode / Job Label</label>
+    <input type="text" id="jobLabel" placeholder="e.g. CH16AX or Re-roof Chester">
+    <label>Job Link (optional URL)</label>
+    <input type="url" id="jobLink" placeholder="https://docs.google.com/... or job sheet link">
+    <label>Start Date</label>
+    <input type="text" id="jobStartDateDisplay" placeholder="Click to select date" readonly style="cursor:pointer;" onclick="toggleCalendarPopup()">
+    <input type="hidden" id="jobStartDate">
+    <label>Duration (days)</label>
+    <input type="number" id="jobDuration" min="1" value="1">
+    <label>Required Team</label>
+    <div class="team-checkboxes">
+      <div class="team-line">
+        <label><input type="checkbox" value="SIMON" id="chkSimon"> Simon</label>
+        <label><input type="checkbox" value="CHRIS" id="chkChris"> Chris</label>
+      </div>
+      <div class="team-line">
+        <label><input type="checkbox" value="ROOFER 1" id="chkRoofer1"> Roofer 1</label>
+        <label><input type="checkbox" value="ROOFER 2" id="chkRoofer2"> Roofer 2</label>
+        <label><input type="checkbox" value="ROOFER 3" id="chkRoofer3"> Roofer 3</label>
+        <label><input type="checkbox" value="ROOFER 4" id="chkRoofer4"> Roofer 4</label>
+        <label><input type="checkbox" value="SUB 1" id="chkSub1"> Sub 1</label>
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button id="btnDelete" onclick="deleteJob()" class="btn-danger" style="display:none;">Delete Job</button>
+      <button onclick="closeAddJobModal()" class="btn-secondary">Cancel</button>
+      <button id="btnAddUpdate" onclick="addJob()" class="btn-primary">Add / Update Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- Calendar Popups -->
+<div id="calendarPopup">
+  <button class="calendar-close" onclick="hideCalendarPopup()">×</button>
+  <div class="calendar-header" id="calendarHeader"></div>
+  <div class="calendar-grid" id="calendarGrid"></div>
+</div>
+
+<div id="editCalendarPopup">
+  <button class="edit-calendar-close" onclick="hideEditCalendar()">×</button>
+  <div class="edit-calendar-header" id="editCalendarHeader"></div>
+  <div class="edit-calendar-grid" id="editCalendarGrid"></div>
+</div>
+
+<script>
+const team = ['SIMON', 'CHRIS', 'ROOFER 1', 'ROOFER 2', 'ROOFER 3', 'ROOFER 4', 'SUB 1'];
+const CLEAR_PASSWORD = "sr2clear2026";
+let currentEditingCell = null;
+
+function getDatesForMonth(year, month) {
+  const dates = [];
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+    const dateObj = new Date(d);
+    const dayName = days[dateObj.getDay()];
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yy = String(dateObj.getFullYear()).slice(-2);
+    const formatted = `${dayName}, ${dd}/${mm}/${yy}`;
+    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+    dates.push({ date: dateObj.toISOString().split('T')[0], formatted, isWeekend });
+  }
+  return dates;
+}
+
+function loadSchedule() {
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const dates = getDatesForMonth(year, month);
+  const key = `sr2-schedule-${year}-${month}`;
+  const savedData = JSON.parse(localStorage.getItem(key) || '[]');
+  const tbody = document.getElementById("scheduleBody");
+  tbody.innerHTML = '';
+  dates.forEach((dateInfo, rowIndex) => {
+    const tr = document.createElement("tr");
+    const dateCell = document.createElement("td");
+    dateCell.textContent = dateInfo.formatted;
+    if (dateInfo.isWeekend) dateCell.classList.add('weekend');
+    tr.appendChild(dateCell);
+
+    team.forEach((_, colIndex) => {
+      const cell = document.createElement("td");
+      const cellData = savedData[rowIndex] ? savedData[rowIndex][colIndex] : null;
+      if (cellData) {
+        let label = '';
+        let url = '';
+        if (typeof cellData === 'string') {
+          label = cellData;
+          url = cellData.startsWith('http') ? cellData : '';
+        } else if (cellData && cellData.label) {
+          label = cellData.label;
+          url = cellData.url || '';
+        }
+        cell.textContent = label;
+        if (url) {
+          cell.classList.add("job-label");
+          cell.innerHTML = `<a href="${url}" target="_blank" style="color:inherit; text-decoration:underline;">${label}</a>`;
+        }
+        cell.addEventListener('dblclick', e => {
+          e.stopPropagation();
+          openEditJobForDate(dateInfo.date, rowIndex);
+        });
+      }
+      tr.appendChild(cell);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function saveSchedule() {
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const key = `sr2-schedule-${year}-${month}`;
+  const data = [];
+  const rows = document.getElementById("scheduleBody").rows;
+  for (let row of rows) {
+    const rowData = [];
+    for (let i = 1; i < row.cells.length; i++) {
+      rowData.push(row.cells[i].textContent.trim());
+    }
+    data.push(rowData);
+  }
+  localStorage.setItem(key, JSON.stringify(data));
+  alert("Schedule saved");
+}
+
+function openAddJobModal() {
+  document.getElementById('modalTitle').textContent = 'Add New Job';
+  document.getElementById('btnAddUpdate').textContent = 'Add Job';
+  document.getElementById('btnDelete').style.display = 'none';
+  document.getElementById('jobLabel').value = '';
+  document.getElementById('jobLink').value = '';
+  document.getElementById('jobStartDateDisplay').value = '';
+  document.getElementById('jobStartDate').value = '';
+  document.getElementById('jobDuration').value = '1';
+  document.querySelectorAll('#addJobModal input[type="checkbox"]').forEach(chk => chk.checked = false);
+  document.getElementById('addJobModal').style.display = 'flex';
+  hideCalendarPopup();
+  currentEditingCell = null;
+}
+
+function closeAddJobModal() {
+  document.getElementById('addJobModal').style.display = 'none';
+  hideCalendarPopup();
+  currentEditingCell = null;
+}
+
+function toggleCalendarPopup() {
+  const popup = document.getElementById('calendarPopup');
+  if (popup.style.display === 'block') {
+    hideCalendarPopup();
+  } else {
+    renderCalendarPopup();
+    popup.style.display = 'block';
+  }
+}
+
+function hideCalendarPopup() {
+  document.getElementById('calendarPopup').style.display = 'none';
+}
+
+function renderCalendarPopup() {
+  const popup = document.getElementById('calendarPopup');
+  popup.innerHTML = '';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'calendar-close';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = hideCalendarPopup;
+  popup.appendChild(closeBtn);
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const header = document.createElement('div');
+  header.className = 'calendar-header';
+  header.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  popup.appendChild(header);
+  const grid = document.createElement('div');
+  grid.className = 'calendar-grid';
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'day-name';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+  const first = new Date(year, month, 1);
+  const startDay = (first.getDay() + 6) % 7;
+  for (let i = 0; i < startDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'calendar-day empty';
+    grid.appendChild(empty);
+  }
+  const last = new Date(year, month + 1, 0);
+  for (let d = 1; d <= last.getDate(); d++) {
+    const dayEl = document.createElement('div');
+    dayEl.className = 'calendar-day';
+    dayEl.textContent = d;
+    const date = new Date(year, month, d);
+    const isToday = date.toDateString() === new Date().toDateString();
+    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+    if (isToday) dayEl.classList.add('today');
+    if (isWeekend) dayEl.classList.add('weekend');
+    dayEl.onclick = () => {
+      document.getElementById('jobStartDateDisplay').value = date.toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'2-digit'});
+      document.getElementById('jobStartDate').value = date.toISOString().split('T')[0];
+      hideCalendarPopup();
+    };
+    grid.appendChild(dayEl);
+  }
+  popup.appendChild(grid);
+}
+
+function openEditCalendar() {
+  const popup = document.getElementById('editCalendarPopup');
+  popup.innerHTML = '';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'edit-calendar-close';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = hideEditCalendar;
+  popup.appendChild(closeBtn);
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const header = document.createElement('div');
+  header.className = 'edit-calendar-header';
+  header.textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  popup.appendChild(header);
+  const grid = document.createElement('div');
+  grid.className = 'edit-calendar-grid';
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'edit-day-name';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+  const first = new Date(year, month, 1);
+  const startDay = (first.getDay() + 6) % 7;
+  for (let i = 0; i < startDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'edit-calendar-day empty';
+    grid.appendChild(empty);
+  }
+  const savedData = JSON.parse(localStorage.getItem(`sr2-schedule-${year}-${month}`) || '[]');
+  const dates = getDatesForMonth(year, month);
+  const last = new Date(year, month + 1, 0);
+  for (let d = 1; d <= last.getDate(); d++) {
+    const dayEl = document.createElement('div');
+    dayEl.className = 'edit-calendar-day';
+    dayEl.textContent = d;
+    const date = new Date(year, month, d);
+    const dateKey = date.toISOString().split('T')[0];
+    const rowIdx = dates.findIndex(item => item.date === dateKey);
+    let isBooked = rowIdx !== -1 && savedData[rowIdx] && savedData[rowIdx].some(v => v);
+    if (isBooked) dayEl.classList.add('booked');
+    if (date.toDateString() === new Date().toDateString()) dayEl.classList.add('today');
+    if (date.getDay() === 0 || date.getDay() === 6) dayEl.classList.add('weekend');
+    dayEl.onclick = () => {
+      if (isBooked) openEditJobForDate(dateKey, rowIdx);
+      hideEditCalendar();
+    };
+    grid.appendChild(dayEl);
+  }
+  popup.appendChild(grid);
+  popup.style.display = 'block';
+}
+
+function hideEditCalendar() {
+  document.getElementById('editCalendarPopup').style.display = 'none';
+}
+
+function openEditJobForDate(dateKey, rowIdx) {
+  const date = new Date(dateKey);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const key = `sr2-schedule-${year}-${month}`;
+  const savedData = JSON.parse(localStorage.getItem(key) || '[]');
+  let found = false;
+  for (let col = 0; col < team.length; col++) {
+    const cellData = savedData[rowIdx]?.[col];
+    if (cellData) {
+      let label = typeof cellData === 'string' ? cellData : cellData.label || '';
+      let url = typeof cellData === 'string' ? (cellData.startsWith('http') ? cellData : '') : cellData.url || '';
+      document.getElementById('modalTitle').textContent = 'Edit / Delete Job';
+      document.getElementById('btnAddUpdate').textContent = 'Update Job';
+      document.getElementById('btnDelete').style.display = 'inline-block';
+      document.getElementById('jobLabel').value = label;
+      document.getElementById('jobLink').value = url;
+      document.getElementById('jobStartDateDisplay').value = date.toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit', year:'2-digit'});
+      document.getElementById('jobStartDate').value = dateKey;
+      document.getElementById('jobDuration').value = '1';
+      document.querySelectorAll('#addJobModal input[type="checkbox"]').forEach(chk => chk.checked = chk.value === team[col]);
+      document.getElementById('addJobModal').style.display = 'flex';
+      currentEditingCell = { rowIdx, colIdx: col, dateKey };
+      found = true;
+      break;
+    }
+  }
+  if (!found) alert("No job found on this date.");
+}
+
+function addJob() {
+  const label = document.getElementById('jobLabel').value.trim();
+  if (!label) return alert("Please enter a postcode / job label");
+  const url = document.getElementById('jobLink').value.trim();
+  const startStr = document.getElementById('jobStartDate').value;
+  if (!startStr) return alert("Please select a start date");
+  const duration = parseInt(document.getElementById('jobDuration').value) || 1;
+  if (duration < 1) return alert("Duration must be at least 1 day");
+  const checked = document.querySelectorAll('#addJobModal input[type="checkbox"]:checked');
+  const selected = Array.from(checked).map(cb => cb.value);
+  if (selected.length === 0) return alert("Select at least one team member");
+
+  const start = new Date(startStr);
+  const year = start.getFullYear();
+  const month = start.getMonth();
+  const key = `sr2-schedule-${year}-${month}`;
+  let data = JSON.parse(localStorage.getItem(key) || '[]');
+  const cellValue = { label, url: url || null };
+
+  if (currentEditingCell) {
+    const { rowIdx, colIdx } = currentEditingCell;
+    if (data[rowIdx] && data[rowIdx][colIdx] !== undefined) {
+      data[rowIdx][colIdx] = cellValue;
+    }
+  } else {
+    for (let i = 0; i < duration; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateKey = d.toISOString().split('T')[0];
+      const dates = getDatesForMonth(year, month);
+      const rowIdx = dates.findIndex(item => item.date === dateKey);
+      if (rowIdx === -1) continue;
+      while (data.length <= rowIdx) data.push(Array(team.length).fill(null));
+      selected.forEach(member => {
+        const col = team.indexOf(member);
+        if (col !== -1) data[rowIdx][col] = cellValue;
+      });
+    }
+  }
+  localStorage.setItem(key, JSON.stringify(data));
+  loadSchedule();
+  closeAddJobModal();
+  alert(`Job "${label}" ${currentEditingCell ? 'updated' : 'added'} successfully`);
+  currentEditingCell = null;
+}
+
+function deleteJob() {
+  if (!currentEditingCell) return alert("No job selected to delete.");
+  if (!confirm("Are you sure you want to delete this job?")) return;
+  const { rowIdx, colIdx } = currentEditingCell;
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const key = `sr2-schedule-${year}-${month}`;
+  let data = JSON.parse(localStorage.getItem(key) || '[]');
+  if (data[rowIdx]?.[colIdx] !== undefined) data[rowIdx][colIdx] = null;
+  localStorage.setItem(key, JSON.stringify(data));
+  loadSchedule();
+  closeAddJobModal();
+  alert("Job deleted successfully");
+  currentEditingCell = null;
+}
+
+function downloadAsPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const year = parseInt(document.getElementById("yearSelect").value);
+  const month = parseInt(document.getElementById("monthSelect").value);
+  const monthName = document.getElementById("monthSelect").options[document.getElementById("monthSelect").selectedIndex].text;
+  const key = `sr2-schedule-${year}-${month}`;
+  const savedData = JSON.parse(localStorage.getItem(key) || '[]');
+  const dates = getDatesForMonth(year, month);
+
+  // Title
+  doc.setFontSize(14);
+  doc.setTextColor(60, 181, 74);
+  doc.text(`SR2 Renewables – ${monthName} ${year}`, 105, 8, { align: 'center' });
+
+  doc.setFontSize(8);
+  doc.setTextColor(140);
+  doc.text(`Printed ${new Date().toLocaleDateString('en-GB')}`, 105, 13, { align: 'center' });
+
+  // Build table data
+  const head = [['Date', 'SIMON', 'CHRIS', 'ROOFER 1', 'ROOFER 2', 'ROOFER 3', 'ROOFER 4', 'SUB 1']];
+  const body = [];
+
+  dates.forEach((dateInfo, rowIndex) => {
+    const rowData = [];
+    let dateStr = dateInfo.formatted;
+    const parts = dateStr.split(', ');
+    if (parts.length === 2) {
+      const [dayName, datePart] = parts;
+      const [dd, mm] = datePart.split('/');
+      dateStr = `${dd}/${mm} ${dayName.slice(0,3)}`;
+    }
+    rowData.push(dateStr);
+
+    team.forEach((_, colIndex) => {
+      const cellData = savedData[rowIndex] ? savedData[rowIndex][colIndex] : null;
+      let text = '';
+      let url = null;
+      if (cellData) {
+        if (typeof cellData === 'string') {
+          text = cellData;
+          if (cellData.startsWith('http')) url = cellData;
+        } else if (cellData.label) {
+          text = cellData.label;
+          url = cellData.url || null;
+        }
+      }
+      rowData.push(text);
+    });
+    body.push(rowData);
+  });
+
+  doc.autoTable({
+    head: head,
+    body: body,
+    startY: 15,
+    theme: 'grid',
+    styles: {
+      fontSize: 7.2,
+      cellPadding: 1.8,
+      overflow: 'ellipsize',
+      halign: 'left',
+      valign: 'middle',
+      lineColor: [60, 70, 90],
+      lineWidth: 0.15
+    },
+    headStyles: {
+      fillColor: [13, 27, 42],
+      textColor: [220, 220, 230],
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 8,
+      cellPadding: 2
+    },
+    alternateRowStyles: {
+      fillColor: [24, 35, 52]
+    },
+    columnStyles: {
+      0: { cellWidth: 26 },
+      1: { cellWidth: 21.5 },
+      2: { cellWidth: 21.5 },
+      3: { cellWidth: 21.5 },
+      4: { cellWidth: 21.5 },
+      5: { cellWidth: 21.5 },
+      6: { cellWidth: 21.5 },
+      7: { cellWidth: 21.5 }
+    },
+    margin: { top: 15, left: 9, right: 9, bottom: 12 },
+    didParseCell: function(data) {
+      if (data.column.index === 0 && data.cell.section === 'body') {
+        const txt = (data.cell.text?.[0] || '').toLowerCase();
+        if (txt.includes('sat') || txt.includes('sun')) {
+          data.cell.styles.fillColor = [45, 55, 72];
+          data.cell.styles.textColor = [200, 200, 220];
+        }
+      }
+    },
+    didDrawCell: function(data) {
+      if (data.column.index >= 1 && data.cell.section === 'body' && data.cell.text?.[0]?.trim()) {
+        const rowIndex = data.row.index;
+        const colIndex = data.column.index - 1;
+        const cellData = savedData[rowIndex]?.[colIndex];
+        let url = null;
+        if (cellData) {
+          if (typeof cellData === 'string' && cellData.startsWith('http')) {
+            url = cellData;
+          } else if (cellData.url) {
+            url = cellData.url;
+          }
+        }
+        if (url) {
+          const cell = data.cell;
+          doc.setDrawColor(96, 165, 250);
+          doc.setLineWidth(0.3);
+          doc.line(cell.x + 1, cell.y + cell.height - 1, cell.x + cell.width - 1, cell.y + cell.height - 1);
+          doc.link(cell.x, cell.y, cell.width, cell.height, { url });
+        }
+      }
+    }
+  });
+
+  doc.save(`SR2-Schedule-${monthName}-${year}.pdf`);
+}
+
+function clearAllData() {
+  const password = prompt("Enter password to clear ALL schedule data:");
+  if (password === CLEAR_PASSWORD) {
+    localStorage.clear();
+    loadSchedule();
+    alert("All schedule data cleared.");
+  } else {
+    alert("Incorrect password.");
+  }
+}
+
+document.getElementById("yearSelect").addEventListener("change", loadSchedule);
+document.getElementById("monthSelect").addEventListener("change", loadSchedule);
+loadSchedule();
+</script>
+</body>
+</html>
